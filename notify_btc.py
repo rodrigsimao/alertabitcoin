@@ -1,9 +1,9 @@
 import os
 import requests
 
-CMC_API_KEY = os.environ.get("d0b257c1-242b-4dd7-b73e-b4f99e86e0a4")
-TELEGRAM_BOT_TOKEN = os.environ.get("8259020626:AAHEA6MoQFCBj2hcLWelI4lgCDGiLh6_5uI")
-TELEGRAM_CHAT_ID = os.environ.get("5678706977")
+CMC_API_KEY = os.environ.get("CMC_API_KEY")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 def get_btc_price():
     url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
@@ -39,4 +39,5 @@ def main():
         print("Erro:", e)
 
 if __name__ == "__main__":
+
     main()
