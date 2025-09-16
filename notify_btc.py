@@ -1,6 +1,6 @@
 import os
 import requests
-
+print("DEBUG - API KEY length:", len(CMC_API_KEY) if CMC_API_KEY else "NÃO ENCONTRADA")
 CMC_API_KEY = os.environ.get("CMC_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -41,3 +41,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+
