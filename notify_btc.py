@@ -11,7 +11,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 VARIACAO_ALERTA = 5  # percentual de variação para alerta
 
 # Horários para notificações regulares (UTC)
-NOTIF_HORARIOS = ["10:00", "17:00", "00:00"]  # 06h, 13h, 20h horário Cuiabá (UTC-4)
+NOTIF_HORARIOS = ["10:00", "17:00", "00:00"]  # 06h, 13h, 20h em Cuiabá (UTC-4)
 
 def get_btc_price():
     url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
@@ -62,6 +62,15 @@ def send_telegram(text):
     r.raise_for_status()
     return r.json()
 
+def send_telegram_photo(photo_path, caption=""):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    with open(photo_path, "rb") as photo:
+        files = {"photo": photo}
+        data = {"chat_id": TELEGRAM_CHAT_ID, "caption": caption}
+        r = requests.post(url, files=files, data=data, timeout=10)
+        r.raise_for_status()
+        return r.json()
+
 def check_variation(price_usd, price_brl):
     filename = "btc_history.csv"
     if not os.path.isfile(filename):
@@ -87,7 +96,7 @@ def main():
         now = save_to_csv(price_usd, price_brl)
         generate_chart()
 
-        # Alertas imediatos por variação
+        # Alerta por variação imediata
         variation = check_variation(price_usd, price_brl)
         if variation:
             var_usd, var_brl = variation
@@ -99,14 +108,14 @@ def main():
             )
             send_telegram(alert_text)
 
-        # Notificação regular 3x ao dia
+        # Notificação regular com gráfico 3x ao dia
         if should_send_regular(now):
-            text = (
+            caption = (
                 f"💰 Bitcoin (BTC) - Cotação regular\n"
                 f"🇺🇸 USD: ${price_usd:,.2f}\n"
                 f"🇧🇷 BRL: R${price_brl:,.2f}"
             )
-            send_telegram(text)
+            send_telegram_photo("btc_chart.png", caption=caption)
 
         print("Execução finalizada:", now)
 
