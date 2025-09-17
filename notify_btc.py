@@ -1,131 +1,150 @@
 import os
 import requests
-import csv
-from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime, timezone
 
-CMC_API_KEY = os.environ.get("CMC_API_KEY")
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-VARIACAO_ALERTA = 5  # percentual de variação para alerta
+CMC_API_KEY = os.getenv("CMC_API_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Horários para notificações regulares (UTC)
-NOTIF_HORARIOS = ["10:00", "17:00", "00:00"]  # 06h, 13h, 20h em Cuiabá (UTC-4)
+CSV_FILE = "btc_history.csv"
+PNG_FILE = "btc_chart.png"
 
-def get_btc_price():
-    url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
-    headers = {"X-CMC_PRO_API_KEY": CMC_API_KEY}
-
-    r_usd = requests.get(url, params={"symbol": "BTC", "convert": "USD"}, headers=headers, timeout=10)
-    r_usd.raise_for_status()
-    price_usd = r_usd.json()["data"]["BTC"]["quote"]["USD"]["price"]
-
-    r_brl = requests.get(url, params={"symbol": "BTC", "convert": "BRL"}, headers=headers, timeout=10)
-    r_brl.raise_for_status()
-    price_brl = r_brl.json()["data"]["BTC"]["quote"]["BRL"]["price"]
-
-    return price_usd, price_brl
-
-def save_to_csv(price_usd, price_brl):
-    filename = "btc_history.csv"
-    file_exists = os.path.isfile(filename)
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-    with open(filename, mode="a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["datetime_utc", "price_usd", "price_brl"])
-        writer.writerow([now, f"{price_usd:.2f}", f"{price_brl:.2f}"])
-    return now
-
-def generate_chart():
-    if not os.path.isfile("btc_history.csv"):
-        return
-    df = pd.read_csv("btc_history.csv", parse_dates=["datetime_utc"])
-    plt.figure(figsize=(10,5))
-    plt.plot(df["datetime_utc"], df["price_usd"], label="USD")
-    plt.plot(df["datetime_utc"], df["price_brl"], label="BRL")
-    plt.xlabel("Data (UTC)")
-    plt.ylabel("Preço")
-    plt.title("Histórico do Bitcoin")
-    plt.legend()
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig("btc_chart.png")
-    plt.close()
-
-def send_telegram(text):
+# -------------------------------
+# Funções de envio ao Telegram
+# -------------------------------
+def send_telegram(text: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
     r = requests.post(url, json=payload, timeout=10)
+    print("DEBUG send_telegram status:", r.status_code, r.text)
     r.raise_for_status()
     return r.json()
 
-def send_telegram_photo(photo_path, caption=""):
+def send_telegram_photo(photo_path: str, caption: str = ""):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    if not os.path.isfile(photo_path):
+        raise FileNotFoundError(f"Arquivo não encontrado: {photo_path}")
     with open(photo_path, "rb") as photo:
         files = {"photo": photo}
         data = {"chat_id": TELEGRAM_CHAT_ID, "caption": caption}
         r = requests.post(url, files=files, data=data, timeout=10)
+        print("DEBUG send_telegram_photo status:", r.status_code, r.text)
         r.raise_for_status()
         return r.json()
 
-def check_variation(price_usd, price_brl):
-    filename = "btc_history.csv"
-    if not os.path.isfile(filename):
-        return None
-    df = pd.read_csv(filename)
+# -------------------------------
+# Cotação CoinMarketCap
+# -------------------------------
+def get_btc_price():
+    url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
+    headers = {"X-CMC_PRO_API_KEY": CMC_API_KEY}
+    params = {"symbol": "BTC", "convert": "USD,BRL"}
+    r = requests.get(url, headers=headers, params=params, timeout=10)
+    print("DEBUG CoinMarketCap status:", r.status_code)
+    r.raise_for_status()
+    data = r.json()["data"]["BTC"]["quote"]
+    return data["USD"]["price"], data["BRL"]["price"]
+
+# -------------------------------
+# Histórico CSV + Gráfico
+# -------------------------------
+def save_price_to_csv(price_usd, price_brl):
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    row = {"datetime_utc": now, "price_usd": price_usd, "price_brl": price_brl}
+    df = pd.DataFrame([row])
+    if not os.path.isfile(CSV_FILE):
+        df.to_csv(CSV_FILE, index=False)
+    else:
+        df.to_csv(CSV_FILE, mode="a", header=False, index=False)
+    print("DEBUG CSV atualizado:", row)
+    return now
+
+def generate_chart():
+    if not os.path.isfile(CSV_FILE):
+        print("DEBUG Nenhum CSV encontrado para gerar gráfico.")
+        return False
+    df = pd.read_csv(CSV_FILE, parse_dates=["datetime_utc"])
     if df.empty:
+        print("DEBUG CSV vazio, não gera gráfico.")
+        return False
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(df["datetime_utc"], df["price_usd"], label="USD")
+    plt.plot(df["datetime_utc"], df["price_brl"], label="BRL")
+    plt.title("Histórico Bitcoin")
+    plt.xlabel("Data (UTC)")
+    plt.ylabel("Preço")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(PNG_FILE)
+    plt.close()
+    print("DEBUG Gráfico gerado:", PNG_FILE)
+    return True
+
+# -------------------------------
+# Alertas e notificações
+# -------------------------------
+def check_variation(price_usd, price_brl, threshold=0.05):
+    if not os.path.isfile(CSV_FILE):
         return None
-    last_usd = float(df["price_usd"].iloc[-1])
-    last_brl = float(df["price_brl"].iloc[-1])
-    var_usd = abs(price_usd - last_usd) / last_usd * 100
-    var_brl = abs(price_brl - last_brl) / last_brl * 100
-    if var_usd >= VARIACAO_ALERTA or var_brl >= VARIACAO_ALERTA:
-        return var_usd, var_brl
+    df = pd.read_csv(CSV_FILE)
+    if df.shape[0] < 2:
+        return None
+    last_usd = df.iloc[-2]["price_usd"]
+    variation_usd = (price_usd - last_usd) / last_usd
+    if abs(variation_usd) >= threshold:
+        return variation_usd
     return None
 
-def should_send_regular(now_utc):
-    hora_min = now_utc[11:16]  # pega HH:MM
-    return hora_min in NOTIF_HORARIOS
+def should_send_regular(now):
+    # Notifica 3x ao dia em UTC → 12h, 16h, 20h
+    return now.hour in [12, 16, 20] and now.minute < 15
 
+# -------------------------------
+# Execução principal
+# -------------------------------
 def main():
     try:
-        price_usd, price_brl = get_btc_price()
-        now = save_to_csv(price_usd, price_brl)
-        generate_chart()
+        print("DEBUG Iniciando script BTC...")
 
-        # Alerta por variação imediata
+        price_usd, price_brl = get_btc_price()
+        now = save_price_to_csv(price_usd, price_brl)
+        chart_ok = generate_chart()
+
+        # Verificação de variação
         variation = check_variation(price_usd, price_brl)
         if variation:
-            var_usd, var_brl = variation
+            pct = variation * 100
             alert_text = (
-                f"⚠️ Alerta de variação BTC!\n"
-                f"Preço: 🇺🇸 ${price_usd:,.2f} | 🇧🇷 R${price_brl:,.2f}\n"
-                f"Variação desde última cotação:\n"
-                f"🇺🇸 {var_usd:.2f}% | 🇧🇷 {var_brl:.2f}%"
+                f"🚨 ALERTA: BTC variação {pct:+.2f}%\n"
+                f"🇺🇸 USD: ${price_usd:,.2f}\n"
+                f"🇧🇷 BRL: R${price_brl:,.2f}"
             )
             send_telegram(alert_text)
 
-        # Notificação regular com gráfico 3x ao dia
-        if should_send_regular(now):
+        # Notificações regulares
+        print("DEBUG horário UTC:", now)
+        print("DEBUG should_send_regular:", should_send_regular(now))
+
+        if should_send_regular(now) and chart_ok:
             caption = (
                 f"💰 Bitcoin (BTC) - Cotação regular\n"
                 f"🇺🇸 USD: ${price_usd:,.2f}\n"
                 f"🇧🇷 BRL: R${price_brl:,.2f}"
             )
-            send_telegram_photo("btc_chart.png", caption=caption)
-
-        print("Execução finalizada:", now)
+            try:
+                send_telegram_photo(PNG_FILE, caption=caption)
+                print("DEBUG Foto enviada com sucesso.")
+            except Exception as e:
+                print("DEBUG Erro ao enviar foto:", e)
+                send_telegram(f"⚠️ Erro ao enviar foto: {e}")
 
     except Exception as e:
-        error_msg = f"⚠️ Erro ao buscar cotação BTC: {e}"
-        print(error_msg)
-        try:
-            send_telegram(error_msg)
-        except:
-            pass
+        print("DEBUG Erro geral:", e)
+        send_telegram(f"⚠️ Erro no bot BTC: {e}")
 
 if __name__ == "__main__":
     main()
