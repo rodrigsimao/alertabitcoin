@@ -1,10 +1,9 @@
 name: BTC notify (Telegram)
 
 on:
+  # Executa a cada 15 minutos
   schedule:
-    - cron: '0 10 * * *'   # 06h Cuiabá
-    - cron: '0 17 * * *'   # 13h Cuiabá
-    - cron: '0 0 * * *'    # 20h Cuiabá
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
