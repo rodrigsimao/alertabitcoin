@@ -2,6 +2,8 @@ import os
 import requests
 import csv
 from datetime import datetime
+import pandas as pd
+import matplotlib.pyplot as plt
 
 CMC_API_KEY = os.environ.get("CMC_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -44,6 +46,7 @@ def send_telegram(text):
     r.raise_for_status()
     return r.json()
 
+
 def main():
     try:
         price_usd, price_brl = get_btc_price()
@@ -66,3 +69,16 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+df = pd.read_csv("btc_history.csv", parse_dates=["datetime_utc"])
+plt.figure(figsize=(10,5))
+plt.plot(df["datetime_utc"], df["price_usd"], label="USD")
+plt.plot(df["datetime_utc"], df["price_brl"], label="BRL")
+plt.xlabel("Data (UTC)")
+plt.ylabel("Preço")
+plt.title("Histórico do Bitcoin")
+plt.legend()
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.savefig("btc_chart.png")
+plt.close()
