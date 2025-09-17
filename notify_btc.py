@@ -78,7 +78,6 @@ def check_variation(price_usd, price_brl):
     return None
 
 def should_send_regular(now_utc):
-    """Verifica se o horário atual é um dos horários de notificação regular"""
     hora_min = now_utc[11:16]  # pega HH:MM
     return hora_min in NOTIF_HORARIOS
 
@@ -88,7 +87,7 @@ def main():
         now = save_to_csv(price_usd, price_brl)
         generate_chart()
 
-        # 1️⃣ Alertas imediatos por variação
+        # Alertas imediatos por variação
         variation = check_variation(price_usd, price_brl)
         if variation:
             var_usd, var_brl = variation
@@ -100,7 +99,7 @@ def main():
             )
             send_telegram(alert_text)
 
-        # 2️⃣ Notificação regular 3x ao dia
+        # Notificação regular 3x ao dia
         if should_send_regular(now):
             text = (
                 f"💰 Bitcoin (BTC) - Cotação regular\n"
