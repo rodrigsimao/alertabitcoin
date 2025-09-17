@@ -40,12 +40,17 @@ def send_telegram_photo(photo_path: str, caption: str = ""):
 def get_btc_price():
     url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
     headers = {"X-CMC_PRO_API_KEY": CMC_API_KEY}
-    params = {"symbol": "BTC", "convert": "USD,BRL"}
-    r = requests.get(url, headers=headers, params=params, timeout=10)
-    print("DEBUG CoinMarketCap status:", r.status_code)
-    r.raise_for_status()
-    data = r.json()["data"]["BTC"]["quote"]
-    return data["USD"]["price"], data["BRL"]["price"]
+
+    prices = {}
+    for currency in ["USD", "BRL"]:
+        params = {"symbol": "BTC", "convert": currency}
+        r = requests.get(url, headers=headers, params=params, timeout=10)
+        print(f"DEBUG CoinMarketCap status {currency}:", r.status_code)
+        r.raise_for_status()
+        data = r.json()["data"]["BTC"]["quote"][currency]["price"]
+        prices[currency] = data
+
+    return prices["USD"], prices["BRL"]
 
 # -------------------------------
 # Histórico CSV + Gráfico
