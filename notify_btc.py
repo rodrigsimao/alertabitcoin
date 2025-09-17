@@ -4,6 +4,7 @@ import requests
 CMC_API_KEY = os.environ.get("CMC_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+print("DEBUG - API KEY:", "ENCONTRADA" if CMC_API_KEY else "NÃO ENCONTRADA")
 
 def get_btc_price():
     url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
@@ -49,3 +50,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
