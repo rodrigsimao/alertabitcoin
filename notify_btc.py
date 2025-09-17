@@ -8,19 +8,19 @@ import matplotlib.pyplot as plt
 CMC_API_KEY = os.environ.get("CMC_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+VARIACAO_ALERTA = 5  # percentual de variação para alerta
 
-print("DEBUG - API KEY:", "ENCONTRADA" if CMC_API_KEY else "NÃO ENCONTRADA")
+# Horários para notificações regulares (UTC)
+NOTIF_HORARIOS = ["10:00", "17:00", "00:00"]  # 06h, 13h, 20h horário Cuiabá (UTC-4)
 
 def get_btc_price():
     url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
     headers = {"X-CMC_PRO_API_KEY": CMC_API_KEY}
 
-    # 1ª chamada: USD
     r_usd = requests.get(url, params={"symbol": "BTC", "convert": "USD"}, headers=headers, timeout=10)
     r_usd.raise_for_status()
     price_usd = r_usd.json()["data"]["BTC"]["quote"]["USD"]["price"]
 
-    # 2ª chamada: BRL
     r_brl = requests.get(url, params={"symbol": "BTC", "convert": "BRL"}, headers=headers, timeout=10)
     r_brl.raise_for_status()
     price_brl = r_brl.json()["data"]["BTC"]["quote"]["BRL"]["price"]
@@ -28,7 +28,6 @@ def get_btc_price():
     return price_usd, price_brl
 
 def save_to_csv(price_usd, price_brl):
-    """Salva histórico em btc_history.csv"""
     filename = "btc_history.csv"
     file_exists = os.path.isfile(filename)
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -38,9 +37,9 @@ def save_to_csv(price_usd, price_brl):
         if not file_exists:
             writer.writerow(["datetime_utc", "price_usd", "price_brl"])
         writer.writerow([now, f"{price_usd:.2f}", f"{price_brl:.2f}"])
+    return now
 
 def generate_chart():
-    """Gera gráfico de linha do BTC"""
     if not os.path.isfile("btc_history.csv"):
         return
     df = pd.read_csv("btc_history.csv", parse_dates=["datetime_utc"])
@@ -63,19 +62,55 @@ def send_telegram(text):
     r.raise_for_status()
     return r.json()
 
+def check_variation(price_usd, price_brl):
+    filename = "btc_history.csv"
+    if not os.path.isfile(filename):
+        return None
+    df = pd.read_csv(filename)
+    if df.empty:
+        return None
+    last_usd = float(df["price_usd"].iloc[-1])
+    last_brl = float(df["price_brl"].iloc[-1])
+    var_usd = abs(price_usd - last_usd) / last_usd * 100
+    var_brl = abs(price_brl - last_brl) / last_brl * 100
+    if var_usd >= VARIACAO_ALERTA or var_brl >= VARIACAO_ALERTA:
+        return var_usd, var_brl
+    return None
+
+def should_send_regular(now_utc):
+    """Verifica se o horário atual é um dos horários de notificação regular"""
+    hora_min = now_utc[11:16]  # pega HH:MM
+    return hora_min in NOTIF_HORARIOS
+
 def main():
     try:
         price_usd, price_brl = get_btc_price()
-        text = (
-            f"💰 Bitcoin (BTC)\n"
-            f"Cotação atual:\n"
-            f"🇺🇸 USD: ${price_usd:,.2f}\n"
-            f"🇧🇷 BRL: R${price_brl:,.2f}"
-        )
-        send_telegram(text)
-        save_to_csv(price_usd, price_brl)
+        now = save_to_csv(price_usd, price_brl)
         generate_chart()
-        print("Mensagem enviada e histórico atualizado.")
+
+        # 1️⃣ Alertas imediatos por variação
+        variation = check_variation(price_usd, price_brl)
+        if variation:
+            var_usd, var_brl = variation
+            alert_text = (
+                f"⚠️ Alerta de variação BTC!\n"
+                f"Preço: 🇺🇸 ${price_usd:,.2f} | 🇧🇷 R${price_brl:,.2f}\n"
+                f"Variação desde última cotação:\n"
+                f"🇺🇸 {var_usd:.2f}% | 🇧🇷 {var_brl:.2f}%"
+            )
+            send_telegram(alert_text)
+
+        # 2️⃣ Notificação regular 3x ao dia
+        if should_send_regular(now):
+            text = (
+                f"💰 Bitcoin (BTC) - Cotação regular\n"
+                f"🇺🇸 USD: ${price_usd:,.2f}\n"
+                f"🇧🇷 BRL: R${price_brl:,.2f}"
+            )
+            send_telegram(text)
+
+        print("Execução finalizada:", now)
+
     except Exception as e:
         error_msg = f"⚠️ Erro ao buscar cotação BTC: {e}"
         print(error_msg)
@@ -86,5 +121,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-  
-
