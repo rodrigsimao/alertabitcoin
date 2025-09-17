@@ -1,11 +1,13 @@
 import os
 import requests
+import csv
+from datetime import datetime
 
 CMC_API_KEY = os.environ.get("CMC_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-print("DEBUG - API KEY:", "ENCONTRADA" if CMC_API_KEY else "NÃO ENCONTRADA")
 
+print("DEBUG - API KEY:", "ENCONTRADA" if CMC_API_KEY else "NÃO ENCONTRADA")
 def get_btc_price():
     url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
     headers = {"X-CMC_PRO_API_KEY": CMC_API_KEY}
@@ -21,6 +23,19 @@ def get_btc_price():
     price_brl = r_brl.json()["data"]["BTC"]["quote"]["BRL"]["price"]
 
     return price_usd, price_brl
+
+def save_to_csv(price_usd, price_brl):
+    """Salva o histórico em btc_history.csv"""
+    filename = "btc_history.csv"
+    file_exists = os.path.isfile(filename)
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    with open(filename, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        # Cabeçalho só se for o primeiro registro
+        if not file_exists:
+            writer.writerow(["datetime_utc", "price_usd", "price_brl"])
+        writer.writerow([now, f"{price_usd:.2f}", f"{price_brl:.2f}"])
 
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -39,7 +54,8 @@ def main():
             f"🇧🇷 BRL: R${price_brl:,.2f}"
         )
         send_telegram(text)
-        print("Mensagem enviada:\n", text)
+        save_to_csv(price_usd, price_brl)
+        print("Mensagem enviada e histórico salvo:\n", text)
     except Exception as e:
         error_msg = f"⚠️ Erro ao buscar cotação BTC: {e}"
         print(error_msg)
@@ -50,4 +66,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
