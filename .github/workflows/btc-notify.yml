@@ -1,12 +1,10 @@
 name: BTC notify (Telegram)
 
 on:
-  # Executa nos horários definidos (UTC → Cuiabá UTC-4)
   schedule:
     - cron: '0 10 * * *'   # 06h Cuiabá
     - cron: '0 17 * * *'   # 13h Cuiabá
     - cron: '0 0 * * *'    # 20h Cuiabá
-  # Executa manualmente pelo botão Run workflow
   workflow_dispatch:
 
 jobs:
@@ -32,10 +30,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python notify_btc.py
 
-      - name: Commit histórico
+      - name: Commit histórico e gráfico
         run: |
           git config --local user.name "github-actions"
           git config --local user.email "actions@github.com"
-          git add btc_history.csv btc_chart.png
+          git add btc_history.csv
+          [ -f btc_chart.png ] && git add btc_chart.png
           git commit -m "Atualiza histórico BTC [skip ci]" || echo "Nada para commitar"
           git push
