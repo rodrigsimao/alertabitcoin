@@ -1,50 +1,29 @@
-name: BTC Notifier2
+name: Notify BTC
 
 on:
-  workflow_dispatch:   # permite rodar manualmente pelo GitHub Actions
   schedule:
-    - cron: "*/15 * * * *"   # executa a cada 15 minutos
+    - cron: "*/15 * * * *"   # roda a cada 15 min
+  workflow_dispatch:
 
 jobs:
   notify:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repositório
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Configurar Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
-      - name: Instalar dependências
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install requests pandas matplotlib
+          pip install requests pandas matplotlib pytz
 
-      - name: Executar script de notificação
+      - name: Run notify_btc.py
         env:
           CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python notify_btc.py
-
-      - name: Commit histórico e gráfico (se existirem mudanças)
-        run: |
-          git config --local user.name "github-actions"
-          git config --local user.email "actions@github.com"
-
-          if [ -f btc_history.csv ]; then
-            git add btc_history.csv
-          fi
-          if [ -f btc_chart.png ]; then
-            git add btc_chart.png
-          fi
-
-          if git diff --cached --quiet; then
-            echo "Nenhuma alteração detectada, não será feito commit."
-          else
-            git commit -m "Atualização automática BTC [skip ci]"
-            git push
-          fi
