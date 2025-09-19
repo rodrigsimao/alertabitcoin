@@ -1,0 +1,26 @@
+name: Debug BTC Notify
+
+on:
+  workflow_dispatch:  # permite rodar manualmente pelo botão "Run workflow"
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install requests
+
+      - name: Rodar script de debug
+        env:
+          CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_DEBUG_DRY_RUN: "0"   # mude para "1" se quiser só simular
+        run: python notify_btc_debug.py
